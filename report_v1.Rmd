@@ -1,0 +1,168 @@
+---
+title: "GSE45458"
+author: "Irzam Sarfraz"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    theme: cosmo
+    code_folding: show
+    self_contained: true
+  pdf_document:
+    toc: yes
+subtitle: "Differential Expression between Replicates"
+editor_options:
+  chunk_output_type: console
+---
+# Processing
+```{r, message=FALSE}
+#loading required packages
+library(SingleCellExperiment)
+library(stringr)
+library(limma)
+library(GEOquery)
+
+#read expression matrix
+matrix <- readRDS("./data/matrix.rds")
+
+#make a sce object
+sce <- SingleCellExperiment(list(counts = matrix))
+
+#fetch phenotype data
+gse45458 <- getGEO('GSE45458')
+
+#get required phenotype data in dataframe
+colData <- DataFrame(
+  cell_type =  stringr::str_split(
+    string = gse45458$GSE45458_series_matrix.txt.gz$characteristics_ch1, 
+    pattern = "cell type: ", n = 2, simplify = TRUE)[, 2], 
+  cytokine_treatment = stringr::str_split(
+    string = gse45458$GSE45458_series_matrix.txt.gz$characteristics_ch1.1, 
+    pattern = "cytokine treatment: ", n = 2, simplify = TRUE)[, 2],
+  time_point = stringr::str_split(
+    string = gse45458$GSE45458_series_matrix.txt.gz$characteristics_ch1.2, 
+    pattern = "time point: ", n = 2, simplify = TRUE)[, 2],
+  row.names = colnames(sce))
+
+#store in colData slot of the sce object for easy manipulation
+colData(sce) <- colData
+```
+
+# ILC2_Media_24_hour (4 replicates) vs. ILC2_IL-33_24_hour (4 replicates)
+
+```{r}
+# ILC2_Media_24_hour (4 replicates) vs. ILC2_IL-33_24_hour (4 replicates)
+design <- cbind("ILC2_media_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_IL_33_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "media" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "IL-33" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+matrix <- na.omit(matrix)
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_Media_24_hour_vs_ILC2_IL_33_24_hour=ILC2_media_24_hour-ILC2_IL_33_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+results <- topTable(fit2, number = nrow(sce))
+results$gene_symbol <- getGeneSymbols(rownames(results))
+print(head(results))
+write.csv(results, file = "ILC2_media_24_hour-ILC2_IL_33_24_hour.csv")
+```
+
+# ILC2_Media_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+
+```{r}
+# ILC2_Media_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+design <- cbind("ILC2_media_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_TSLP_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "media" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "TSLP" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_Media_24_hour_vs_ILC2_TSLP_24_hour=ILC2_media_24_hour-ILC2_TSLP_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+which(topTable(fit2, number = nrow(sce))$adj.P.Val < 0.05)
+print(topTable(fit2))
+```
+
+# ILC2_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+
+```{r}
+# ILC2_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+design <- cbind("ILC2_IL_25_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_TSLP_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "IL-25" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "TSLP" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_IL_25_24_hour_vs_ILC2_TSLP_24_hour=ILC2_IL_25_24_hour-ILC2_TSLP_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+which(topTable(fit2, number = nrow(sce))$adj.P.Val < 0.05)
+print(topTable(fit2))
+```
+
+# ILC2_IL_25_24_hour (4 replicates) vs. ILC2_IL_33_24_hour (4 replicates)
+
+```{r}
+# ILC2_IL_25_24_hour (4 replicates) vs. ILC2_IL_33_24_hour (4 replicates)
+design <- cbind("ILC2_IL_25_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_IL_33_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "IL-25" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "IL-33" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_IL_25_24_hour_vs_ILC2_IL_33_24_hour=ILC2_IL_25_24_hour-ILC2_IL_33_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+print(topTable(fit2))
+```
+
+# ILC2_IL_33_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+
+```{r}
+# ILC2_IL_33_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+design <- cbind("ILC2_IL_33_IL_25_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_TSLP_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "IL-33, IL-25" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "TSLP" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_IL_33_IL_25_24_hour_vs_ILC2_TSLP_24_hour=ILC2_IL_33_IL_25_24_hour-ILC2_TSLP_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+which(topTable(fit2, number = nrow(sce))$adj.P.Val < 0.05)
+print(topTable(fit2))
+```
+
+# ILC2_TSLP_IL_33_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+
+```{r}
+# ILC2_TSLP_IL_33_IL_25_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+design <- cbind("ILC2_TSLP_IL_33_IL_25_24_hour" = c(rep(1, 4), rep(0, 4)), "ILC2_TSLP_24_hour" = c(rep(0,4), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "TSLP, IL-33, IL-25" & sce$time_point == "24 hours")], colnames(sce)[which(sce$cytokine_treatment == "TSLP" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_TSLP_IL_33_IL_25_24_hour_vs_ILC2_TSLP_24_hour=ILC2_TSLP_IL_33_IL_25_24_hour-ILC2_TSLP_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+which(topTable(fit2, number = nrow(sce))$adj.P.Val < 0.05)
+print(topTable(fit2))
+```
+
+# ILC2_IL_33_6_hour (5 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+
+```{r}
+# ILC2_IL_33_6_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
+design <- cbind("ILC2_IL_33_6_hour" = c(rep(1, 5), rep(0, 4)), "ILC2_TSLP_24_hour" = c(rep(0,5), rep(1,4)))
+rownames(design) <- c(colnames(sce)[which(sce$cytokine_treatment == "IL-33" & sce$time_point == "6 hours")], colnames(sce)[which(sce$cytokine_treatment == "TSLP" & sce$time_point == "24 hours")])
+matrix <- assay(sce, "counts")[, rownames(design)]
+fit <- lmFit(object = matrix, design = design)
+cont.matrix <- makeContrasts(ILC2_IL_33_6_hour_vs_ILC2_TSLP_24_hour=ILC2_IL_33_6_hour-ILC2_TSLP_24_hour, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+fit2 <- eBayes(fit2)
+which(topTable(fit2, number = nrow(sce))$adj.P.Val < 0.05)
+print(topTable(fit2))
+```
+
+```{r}
+# map gene ids
+gene_data <- read.csv("./data/gene_data.txt", sep = "\t", header = FALSE) #V1 = transcript id, V7 = gene symbol
+
+getGeneSymbols <- function(inputIDs){
+  return(gene_data$V7[match(inputIDs, gene_data$V1)])
+}
+
+```
