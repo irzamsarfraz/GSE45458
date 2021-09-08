@@ -11,7 +11,7 @@
 
 <meta name="author" content="Irzam Sarfraz" />
 
-<meta name="date" content="2021-09-03" />
+<meta name="date" content="2021-09-08" />
 
 <title>GSE45458</title>
 
@@ -256,7 +256,7 @@ div.tocify {
 <h1 class="title toc-ignore">GSE45458</h1>
 <h3 class="subtitle">Differential Expression between Replicates</h3>
 <h4 class="author">Irzam Sarfraz</h4>
-<h4 class="date">September 03, 2021</h4>
+<h4 class="date">September 08, 2021</h4>
 
 </div>
 
@@ -268,6 +268,7 @@ library(SingleCellExperiment)
 library(stringr)
 library(limma)
 library(GEOquery)
+library(gtools)
 
 #read expression matrix
 matrix &lt;- readRDS(&quot;./data/matrix.rds&quot;)
@@ -292,7 +293,14 @@ colData &lt;- DataFrame(
   row.names = colnames(sce))
 
 #store in colData slot of the sce object for easy manipulation
-colData(sce) &lt;- colData</code></pre>
+colData(sce) &lt;- colData
+
+# map gene ids
+gene_data &lt;- read.csv(&quot;./data/gene_data.txt&quot;, sep = &quot;\t&quot;, header = FALSE) #V1 = transcript id, V7 = gene symbol
+
+getGeneSymbols &lt;- function(inputIDs){
+  return(gene_data$V7[match(inputIDs, gene_data$V1)])
+}</code></pre>
 </div>
 <div id="ilc2_media_24_hour-4-replicates-vs.-ilc2_il-33_24_hour-4-replicates" class="section level1" number="2">
 <h1 number="2"><span class="header-section-number">2</span> ILC2_Media_24_hour (4 replicates) vs. ILC2_IL-33_24_hour (4 replicates)</h1>
@@ -300,51 +308,734 @@ colData(sce) &lt;- colData</code></pre>
 design &lt;- cbind(&quot;ILC2_media_24_hour&quot; = c(rep(1, 4), rep(0, 4)), &quot;ILC2_IL_33_24_hour&quot; = c(rep(0,4), rep(1,4)))
 rownames(design) &lt;- c(colnames(sce)[which(sce$cytokine_treatment == &quot;media&quot; &amp; sce$time_point == &quot;24 hours&quot;)], colnames(sce)[which(sce$cytokine_treatment == &quot;IL-33&quot; &amp; sce$time_point == &quot;24 hours&quot;)])
 matrix &lt;- assay(sce, &quot;counts&quot;)[, rownames(design)]
-fit &lt;- lmFit(object = matrix, design = design)</code></pre>
-<pre><code>## Warning: Partial NA coefficients for 1269 probe(s)</code></pre>
-<pre class="r"><code>cont.matrix &lt;- makeContrasts(ILC2_Media_24_hour_vs_ILC2_IL_33_24_hour=ILC2_media_24_hour-ILC2_IL_33_24_hour, levels=design)
+matrix &lt;- na.omit(matrix)
+fit &lt;- lmFit(object = matrix, design = design)
+cont.matrix &lt;- makeContrasts(ILC2_Media_24_hour_vs_ILC2_IL_33_24_hour=ILC2_media_24_hour-ILC2_IL_33_24_hour, levels=design)
 fit2 &lt;- contrasts.fit(fit, cont.matrix)
 fit2 &lt;- eBayes(fit2)
-which(topTable(fit2, number = nrow(sce))$adj.P.Val &lt; 0.05)</code></pre>
-<pre><code>## integer(0)</code></pre>
-<pre class="r"><code>print(topTable(fit2))</code></pre>
-<pre><code>##                   logFC    AveExpr         t      P.Value adj.P.Val        B
-## A_33_P3242798  1.209950 -8.1803250  9.976933 9.694687e-06 0.1558399 2.845556
-## A_23_P46429    1.398975 -6.7704375  9.484917 1.404276e-05 0.1558399 2.637063
-## A_33_P3216763  1.011455 -0.2496425  8.921627 2.191255e-05 0.1558399 2.374197
-## A_33_P3419696  1.340600 -2.4625250  8.658161 2.720362e-05 0.1558399 2.241538
-## A_33_P3390207  1.273948 -1.4542629 10.049068 2.347393e-05 0.1558399 1.894638
-## A_24_P12626    1.001750 -7.5310500  7.364959 8.564650e-05 0.2675608 1.486298
-## A_24_P231302   1.783692 -0.7297143  8.843496 5.340101e-05 0.2145986 1.476327
-## A_33_P3328051 -1.141457 -0.5428267 -8.675387 6.034391e-05 0.2155551 1.409514
-## A_23_P2920     1.058050 -5.7335500  7.176451 1.025626e-04 0.2747737 1.359946
-## A_33_P3228271  0.650990 -0.7321375  6.984059 1.237423e-04 0.2783437 1.226230</code></pre>
+results &lt;- topTable(fit2, number = nrow(sce))
+results$gene_symbol &lt;- getGeneSymbols(rownames(results))
+print(head(results))</code></pre>
+<pre><code>##                  logFC    AveExpr         t      P.Value adj.P.Val        B
+## A_33_P3242798 1.209950 -8.1803250 10.395848 6.501299e-06 0.1290382 3.053652
+## A_23_P46429   1.398975 -6.7704375  9.770448 1.032218e-05 0.1290382 2.803414
+## A_33_P3216763 1.011455 -0.2496425  9.344657 1.435193e-05 0.1290382 2.616108
+## A_33_P3419696 1.340600 -2.4625250  8.899323 2.054363e-05 0.1385308 2.403913
+## A_24_P12626   1.001750 -7.5310500  7.618458 6.304571e-05 0.2616488 1.685521
+## A_33_P3228271 0.650990 -0.7321375  7.464928 7.283508e-05 0.2616488 1.587171
+##               gene_symbol
+## A_33_P3242798        CPS1
+## A_23_P46429         CYR61
+## A_33_P3216763        EYA1
+## A_33_P3419696        FGF2
+## A_24_P12626          CAV1
+## A_33_P3228271        CST3</code></pre>
+<pre class="r"><code>write.csv(results, file = &quot;ILC2_media_24_hour-ILC2_IL_33_24_hour.csv&quot;)</code></pre>
 </div>
-<div id="ilc2_media_24_hour-4-replicates-vs.-ilc2_tslp_24_hour-4-replicates" class="section level1" number="3">
-<h1 number="3"><span class="header-section-number">3</span> ILC2_Media_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)</h1>
-<pre class="r"><code># ILC2_Media_24_hour (4 replicates) vs. ILC2_TSLP_24_hour (4 replicates)
-design &lt;- cbind(&quot;ILC2_media_24_hour&quot; = c(rep(1, 4), rep(0, 4)), &quot;ILC2_TSLP_24_hour&quot; = c(rep(0,4), rep(1,4)))
-rownames(design) &lt;- c(colnames(sce)[which(sce$cytokine_treatment == &quot;media&quot; &amp; sce$time_point == &quot;24 hours&quot;)], colnames(sce)[which(sce$cytokine_treatment == &quot;TSLP&quot; &amp; sce$time_point == &quot;24 hours&quot;)])
-matrix &lt;- assay(sce, &quot;counts&quot;)[, rownames(design)]
-fit &lt;- lmFit(object = matrix, design = design)</code></pre>
-<pre><code>## Warning: Partial NA coefficients for 992 probe(s)</code></pre>
-<pre class="r"><code>cont.matrix &lt;- makeContrasts(ILC2_Media_24_hour_vs_ILC2_TSLP_24_hour=ILC2_media_24_hour-ILC2_TSLP_24_hour, levels=design)
-fit2 &lt;- contrasts.fit(fit, cont.matrix)
-fit2 &lt;- eBayes(fit2)
-which(topTable(fit2, number = nrow(sce))$adj.P.Val &lt; 0.05)</code></pre>
-<pre><code>## integer(0)</code></pre>
-<pre class="r"><code>print(topTable(fit2))</code></pre>
-<pre><code>##                    logFC    AveExpr         t      P.Value adj.P.Val         B
-## A_33_P3286937 -1.1642750 -2.9299625 -9.284793 1.619958e-05 0.2259381 1.7649615
-## A_23_P380526  -1.0074500 -6.0519000 -8.954938 2.107285e-05 0.2259381 1.6457625
-## A_23_P165624  -1.0842000 -2.8920750 -8.613661 2.790479e-05 0.2259381 1.5133919
-## A_24_P918907   1.0657303  0.4667699  8.291079 3.670211e-05 0.2287330 1.3791040
-## A_23_P302005   0.8842750 -1.5587375  8.125889 4.237497e-05 0.2287330 1.3066477
-## A_33_P3576034 -0.9876875 -1.0905813 -7.489488 7.542775e-05 0.2975762 1.0019126
-## A_24_P932939  -1.4946183 -1.1859243 -9.791968 2.736818e-05 0.2259381 0.9872582
-## A_33_P3227452  0.8974025 -0.7641488  7.194865 9.980763e-05 0.2975762 0.8458090
-## A_33_P3391521  1.0163925  1.0546288  7.100191 1.094109e-04 0.2975762 0.7934595
-## A_33_P3407324 -0.8815750 -5.1119375 -6.980769 1.230176e-04 0.2975762 0.7258467</code></pre>
+<div id="all-comparisons" class="section level1" number="3">
+<h1 number="3"><span class="header-section-number">3</span> All comparisons</h1>
+<pre class="r"><code>sce$time_point &lt;- stringr::str_replace_all(sce$time_point, &quot; &quot;, &quot;_&quot;)
+allComparisons &lt;- gtools::combinations(n = 8, r = 2, v = unique(sce$cytokine_treatment))
+for(j in 1:length(unique(sce$time_point))){
+  time &lt;- unique(sce$time_point)[j]
+  
+  for(i in 1:nrow(allComparisons)){
+    cat(&quot;\n\n&quot;)
+    print(paste0(allComparisons[i, 1], &quot; vs &quot;, allComparisons[i, 2], &quot; : &quot;, time))
+    
+    firstComparisonIndices &lt;- which(sce$cytokine_treatment == allComparisons[i, 1] &amp; sce$time_point == time)
+    secondComparisonIndices &lt;- which(sce$cytokine_treatment == allComparisons[i, 2] &amp; sce$time_point == time)
+    firstComparison &lt;- stringr::str_replace_all(allComparisons[i, 1], c(&quot;-&quot; = &quot;_&quot;, &quot;,&quot; = &quot;_&quot;, &quot; &quot; = &quot;&quot;))
+    secondComparison &lt;- stringr::str_replace_all(allComparisons[i, 2], c(&quot;-&quot; = &quot;_&quot;, &quot;,&quot; = &quot;_&quot;, &quot; &quot; = &quot;&quot;))
+    
+    design &lt;- cbind(c(rep(1, length(firstComparisonIndices)), rep(0, length(secondComparisonIndices))), c(rep(0, length(firstComparisonIndices)), rep(1, length(secondComparisonIndices))))
+    colnames(design) &lt;- c(paste0(firstComparison, &quot;_&quot;, time), paste0(secondComparison, &quot;_&quot;, time))
+    rownames(design) &lt;- c(colnames(sce)[firstComparisonIndices], colnames(sce)[secondComparisonIndices])
+    
+    if(sum(design[, 1]) == 0 || sum(design[, 2]) == 0){
+      print(&quot;Comparison not available, skipping to next!&quot;)
+      next
+    }
+    
+    matrix &lt;- assay(sce, &quot;counts&quot;)[, rownames(design)]
+    matrix &lt;- na.omit(matrix)
+    fit &lt;- lmFit(object = matrix, design = design)
+    contrast &lt;- paste0(firstComparison, &quot;_&quot;, time, &quot;-&quot;, secondComparison, &quot;_&quot;, time)
+    cont.matrix &lt;- makeContrasts(contrast, levels=design)
+    fit2 &lt;- contrasts.fit(fit, cont.matrix)
+    fit2 &lt;- eBayes(fit2)
+    results &lt;- topTable(fit2, number = nrow(sce))
+    results$gene_symbol &lt;- getGeneSymbols(rownames(results))
+    print(head(results))
+    write.csv(results, file = paste0(firstComparison, &quot;_&quot;, time, &quot;-&quot;, secondComparison, &quot;_&quot;, time, &quot;.csv&quot;))
+  } 
+}</code></pre>
+<pre><code>## 
+## 
+## [1] &quot;IL-25 vs IL-33 : 6_hours&quot;
+##                  logFC    AveExpr          t      P.Value  adj.P.Val        B
+## A_23_P70670  -2.642954  0.5837830 -11.023463 6.116013e-07 0.01533162 4.823179
+## A_23_P340848 -3.790760  2.4096400 -10.024217 1.478784e-06 0.01658321 4.327187
+## A_23_P119478 -4.200322  1.4877390  -9.628880 2.140488e-06 0.01658321 4.107250
+## A_23_P343398 -2.957160  4.8778600  -9.408038 2.646116e-06 0.01658321 3.977929
+## A_23_P360964 -2.937786 -0.5612068  -8.247338 8.655475e-06 0.03623135 3.213192
+## A_24_P79070  -3.084626  2.7244870  -8.245572 8.671935e-06 0.03623135 3.211910
+##              gene_symbol
+## A_23_P70670         CD83
+## A_23_P340848       PTGIR
+## A_23_P119478        EBI3
+## A_23_P343398        CCR7
+## A_23_P360964       DACT3
+## A_24_P79070         GNG8
+## 
+## 
+## [1] &quot;IL-25 vs IL-33, IL-25 : 6_hours&quot;
+##                   logFC   AveExpr         t      P.Value  adj.P.Val        B
+## A_23_P70670   -2.851934  0.688273 -9.972174 1.442045e-06 0.02053867 4.793658
+## A_23_P343398  -3.224780  5.011670 -9.832794 1.643290e-06 0.02053867 4.706489
+## A_23_P119478  -4.405842  1.590499 -9.368023 2.569289e-06 0.02140818 4.401975
+## A_23_P340848  -3.966280  2.497400 -9.019075 3.637038e-06 0.02272876 4.158572
+## A_23_P106002  -1.225220  2.141290 -8.731853 4.881158e-06 0.02440286 3.948113
+## A_33_P3531373  1.128760 -1.750740  8.361671 7.213719e-06 0.02897567 3.662632
+##               gene_symbol
+## A_23_P70670          CD83
+## A_23_P343398         CCR7
+## A_23_P119478         EBI3
+## A_23_P340848        PTGIR
+## A_23_P106002       NFKBIA
+## A_33_P3531373   LOC340340
+## 
+## 
+## [1] &quot;IL-25 vs media : 6_hours&quot;
+##                   logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_23_P96383   -0.848360 -5.5693800 -5.726856 0.0001872504 0.9999927 -3.253340
+## A_33_P3369991 -1.167043 -0.8784384 -5.691445 0.0001966216 0.9999927 -3.258493
+## A_23_P212089   0.872600  2.8223000  5.636077 0.0002122971 0.9999927 -3.266672
+## A_23_P152235   0.958820 -5.8316100  5.283162 0.0003496869 0.9999927 -3.322534
+## A_23_P210425  -1.132340 -2.0060300 -5.033817 0.0005028639 0.9999927 -3.366201
+## A_23_P166848   1.261040 -2.4876000  4.963705 0.0005578412 0.9999927 -3.379155
+##               gene_symbol
+## A_23_P96383          SRPX
+## A_33_P3369991            
+## A_23_P212089       NFKBIZ
+## A_23_P152235         IRX3
+## A_23_P210425         MYL9
+## A_23_P166848          LTF
+## 
+## 
+## [1] &quot;IL-25 vs TSLP : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33 vs IL-33, IL-25 : 6_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_24_P113264  -0.7933282 -0.7442659 -5.397566 0.0002972912 0.9999654 -3.522996
+## A_23_P306845   1.2426500 -0.1425030  5.275665 0.0003539519 0.9999654 -3.539267
+## A_23_P24083   -0.6747600 -2.2576800 -4.579595 0.0009982794 0.9999654 -3.646419
+## A_33_P3293164 -1.5762670 -0.8787445 -4.358698 0.0014073931 0.9999654 -3.686109
+## A_23_P391764  -0.5447000  1.7313700 -4.351655 0.0014230501 0.9999654 -3.687424
+## A_23_P364355   0.4598412  0.3664234  4.331773 0.0014682450 0.9999654 -3.691152
+##               gene_symbol
+## A_24_P113264       FBXO27
+## A_23_P306845     TSGA10IP
+## A_23_P24083      PNLIPRP2
+## A_33_P3293164        CHGA
+## A_23_P391764      RAPGEF1
+## A_23_P364355             
+## 
+## 
+## [1] &quot;IL-33 vs media : 6_hours&quot;
+##                 logFC  AveExpr        t      P.Value   adj.P.Val        B
+## A_23_P106362 4.695164 2.563198 13.62130 8.297054e-08 0.002347320 6.938917
+## A_23_P70670  2.715446 0.547537 12.40561 2.023559e-07 0.002862425 6.406046
+## A_23_P119478 4.105780 1.535010 10.99759 6.295278e-07 0.005072255 5.667722
+## A_23_P45389  2.054418 1.642151 10.76195 7.705535e-07 0.005072255 5.529391
+## A_32_P108156 4.663402 3.036439 10.58838 8.964433e-07 0.005072255 5.424518
+## A_24_P411121 2.071980 2.907150 10.25561 1.205380e-06 0.005500608 5.216089
+##              gene_symbol
+## A_23_P106362        AQP9
+## A_23_P70670         CD83
+## A_23_P119478        EBI3
+## A_23_P45389        RAB9A
+## A_32_P108156    MIR155HG
+## A_24_P411121    TNFRSF18
+## 
+## 
+## [1] &quot;IL-33 vs TSLP : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs media : 6_hours&quot;
+##                  logFC    AveExpr        t      P.Value   adj.P.Val        B
+## A_23_P106362  5.520644  2.9759380 12.90593 1.255799e-07 0.003433355 7.141072
+## A_23_P45389   2.079878  1.6548810 11.67142 3.285780e-07 0.004491661 6.472280
+## A_23_P70670   2.924426  0.6520270 10.88833 6.340674e-07 0.005247462 5.989914
+## A_23_P119478  4.311300  1.6377700 10.44061 9.405535e-07 0.005247462 5.691218
+## A_23_P131435  1.486916 -0.8323419 10.24259 1.124897e-06 0.005247462 5.553404
+## A_33_P3395008 3.120428  1.6048058 10.21687 1.151601e-06 0.005247462 5.535237
+##               gene_symbol
+## A_23_P106362         AQP9
+## A_23_P45389         RAB9A
+## A_23_P70670          CD83
+## A_23_P119478         EBI3
+## A_23_P131435        CD302
+## A_33_P3395008       ACOXL
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;media vs TSLP : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;media vs TSLP, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;media vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;media vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP, IL-25 vs TSLP, IL-33 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP, IL-25 vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;TSLP, IL-33 vs TSLP, IL-33, IL-25 : 6_hours&quot;
+## [1] &quot;Comparison not available, skipping to next!&quot;
+## 
+## 
+## [1] &quot;IL-25 vs IL-33 : 24_hours&quot;
+##                  logFC   AveExpr         t      P.Value adj.P.Val        B
+## A_24_P411186  1.157950 -3.300000 10.013167 8.246158e-06 0.1540616 3.098023
+## A_23_P302595  0.848450 -2.218650  8.681568 2.373582e-05 0.1540616 2.451431
+## A_23_P212968  1.029550 -3.970325  8.418375 2.972238e-05 0.1540616 2.304370
+## A_33_P3289236 0.722025 -4.270713  8.354890 3.140647e-05 0.1540616 2.267837
+## A_33_P3419696 1.084500 -2.590575  8.342317 3.175246e-05 0.1540616 2.260551
+## A_23_P145724  1.119390 -0.850580  8.255048 3.427400e-05 0.1540616 2.209522
+##               gene_symbol
+## A_24_P411186       BCL11A
+## A_23_P302595     C6orf218
+## A_23_P212968      UGT2B11
+## A_33_P3289236         HPR
+## A_33_P3419696        FGF2
+## A_23_P145724      PPP1R17
+## 
+## 
+## [1] &quot;IL-25 vs IL-33, IL-25 : 24_hours&quot;
+##                 logFC   AveExpr        t      P.Value adj.P.Val        B
+## A_23_P141345  0.77980 -2.929625 9.538396 1.222649e-05 0.1955429 2.315821
+## A_23_P119344  1.25075 -2.319325 9.365633 1.399581e-05 0.1955429 2.247987
+## A_33_P3243887 0.91405 -3.116750 8.726103 2.352716e-05 0.1955429 1.975831
+## A_33_P3289236 0.67725 -4.248325 8.559164 2.708444e-05 0.1955429 1.898915
+## A_23_P121374  0.87890 -2.313325 7.911632 4.781381e-05 0.2657907 1.574897
+## A_23_P127948  0.58320 -6.893975 7.388289 7.782800e-05 0.2657907 1.280059
+##               gene_symbol
+## A_23_P141345         MPP3
+## A_23_P119344        TEAD2
+## A_33_P3243887        IL11
+## A_33_P3289236         HPR
+## A_23_P121374       SEMA5B
+## A_23_P127948          ADM
+## 
+## 
+## [1] &quot;IL-25 vs media : 24_hours&quot;
+##                    logFC   AveExpr         t      P.Value adj.P.Val         B
+## A_32_P384562   0.8026725 -1.395764  7.341954 8.424372e-05  0.785838 -3.151963
+## A_33_P3245228 -1.5230775  1.984136 -7.095535 1.069323e-04  0.785838 -3.170035
+## A_33_P3329028  1.8002900  1.075330  6.966849 1.214191e-04  0.785838 -3.180069
+## A_33_P3235561  1.4369650  0.241135  6.609823 1.743637e-04  0.785838 -3.210276
+## A_23_P430948  -1.0929175  1.589966 -6.589799 1.780138e-04  0.785838 -3.212080
+## A_23_P78867    0.9581500  3.202950  6.578249 1.801576e-04  0.785838 -3.213127
+##               gene_symbol
+## A_32_P384562      CROCCP3
+## A_33_P3245228      BPIFA1
+## A_33_P3329028     AKR1CL1
+## A_33_P3235561       CAPZB
+## A_23_P430948      ATP13A4
+## A_23_P78867          RYR1
+## 
+## 
+## [1] &quot;IL-25 vs TSLP : 24_hours&quot;
+##                   logFC    AveExpr        t      P.Value adj.P.Val         B
+## A_23_P392429  0.7475371  0.3754865 7.297977 0.0000846859 0.9980518 -3.173554
+## A_33_P3384578 0.8466600  0.2107225 6.923065 0.0001225270 0.9980518 -3.201727
+## A_33_P3214720 0.8541750  2.4177375 6.483489 0.0001926508 0.9980518 -3.239575
+## A_23_P57118   0.5936875  0.8462063 6.367212 0.0002179544 0.9980518 -3.250573
+## A_23_P145724  0.6019950 -0.5918825 6.241012 0.0002496449 0.9980518 -3.263021
+## A_23_P140362  0.8297000 -3.4102250 6.104701 0.0002896978 0.9980518 -3.277097
+##               gene_symbol
+## A_23_P392429       ZNF396
+## A_33_P3384578            
+## A_33_P3214720     ZC3H12A
+## A_23_P57118          TGM3
+## A_23_P145724      PPP1R17
+## A_23_P140362         VRTN
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-25 : 24_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_23_P435521   0.7447595  0.4774902  6.907155 0.0001135524 0.7115498 -3.347225
+## A_33_P3210605  0.5827058 -0.1830521  6.475139 0.0001785772 0.7115498 -3.380404
+## A_24_P783008  -0.6523107 -0.5063171 -6.387215 0.0001963319 0.7115498 -3.387778
+## A_23_P392962   0.7182975  1.1052762  6.308449 0.0002138986 0.7115498 -3.394577
+## A_33_P3228402  1.0998900 -1.1886050  6.179582 0.0002464919 0.7115498 -3.406113
+## A_24_P138784   1.0083680 -0.2602335  6.025611 0.0002927948 0.7115498 -3.420600
+##               gene_symbol
+## A_23_P435521     TMEM106A
+## A_33_P3210605            
+## A_24_P783008    LOC200726
+## A_23_P392962         GRAP
+## A_33_P3228402            
+## A_24_P138784       MGAT5B
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-33 : 24_hours&quot;
+##                   logFC   AveExpr        t      P.Value  adj.P.Val        B
+## A_33_P3399318  1.469125 -5.673138 11.01817 3.519843e-06 0.03710739 4.391157
+## A_33_P3335975  1.552568 -1.896241 10.97599 3.625211e-06 0.03710739 4.370820
+## A_33_P3232011  1.666250 -7.597100 10.85963 3.934619e-06 0.03710739 4.314063
+## A_23_P110837   1.032250 -3.993075 10.07868 6.961412e-06 0.04101948 3.907170
+## A_23_P141345   0.869550 -2.974500 10.02324 7.259671e-06 0.04101948 3.876473
+## A_24_P230563  -1.547425  7.750737 -9.78726 8.698861e-06 0.04101948 3.742946
+##                gene_symbol
+## A_33_P3399318        GNG12
+## A_33_P3335975 LOC100128176
+## A_33_P3232011        RAB17
+## A_23_P110837          IRX4
+## A_23_P141345          MPP3
+## A_24_P230563         IL2RA
+## 
+## 
+## [1] &quot;IL-25 vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                  logFC   AveExpr         t      P.Value  adj.P.Val        B
+## A_33_P3230676 1.570067 -1.497991 11.494469 2.566926e-06 0.04449097 4.603865
+## A_23_P46429   1.679025 -7.191962 11.185900 3.165941e-06 0.04449097 4.462416
+## A_23_P135381  1.376225 -8.121738  9.861158 8.292518e-06 0.05423180 3.777763
+## A_33_P3263890 1.331600 -6.645675  9.585771 1.027326e-05 0.05423180 3.617876
+## A_23_P142872  1.831425 -4.861813  9.245634 1.348352e-05 0.05423180 3.411092
+## A_23_P110957  1.004775 -5.459512  8.799275 1.951927e-05 0.05423180 3.123155
+##               gene_symbol
+## A_33_P3230676            
+## A_23_P46429         CYR61
+## A_23_P135381          SP5
+## A_33_P3263890       PRRX1
+## A_23_P142872       TCF7L1
+## A_23_P110957        FOXF2
+## 
+## 
+## [1] &quot;IL-33 vs IL-33, IL-25 : 24_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_33_P3227793 -1.0980250 -3.5912875 -6.925152 0.0001236452  0.999942 -3.443512
+## A_33_P3348046  0.5786825  0.6970063  5.724492 0.0004480138  0.999942 -3.538363
+## A_23_P127406  -0.5868600 -0.8895575 -5.034899 0.0010197609  0.999942 -3.614670
+## A_33_P3244643  1.4861000 -3.5568250  4.712418 0.0015328207  0.999942 -3.657736
+## A_33_P3378614 -0.6002302  0.3554374 -4.556115 0.0018777719  0.999942 -3.680589
+## A_33_P3242798 -0.4285000 -8.5710500 -4.437787 0.0021949062  0.999942 -3.698818
+##               gene_symbol
+## A_33_P3227793      CGREF1
+## A_33_P3348046            
+## A_23_P127406        KDM4D
+## A_33_P3244643     FAM183A
+## A_33_P3378614   UG0898H09
+## A_33_P3242798        CPS1
+## 
+## 
+## [1] &quot;IL-33 vs media : 24_hours&quot;
+##                   logFC    AveExpr          t      P.Value adj.P.Val        B
+## A_33_P3242798 -1.209950 -8.1803250 -10.395848 6.501299e-06 0.1290382 3.053652
+## A_23_P46429   -1.398975 -6.7704375  -9.770448 1.032218e-05 0.1290382 2.803414
+## A_33_P3216763 -1.011455 -0.2496425  -9.344657 1.435193e-05 0.1290382 2.616108
+## A_33_P3419696 -1.340600 -2.4625250  -8.899323 2.054363e-05 0.1385308 2.403913
+## A_24_P12626   -1.001750 -7.5310500  -7.618458 6.304571e-05 0.2616488 1.685521
+## A_33_P3228271 -0.650990 -0.7321375  -7.464928 7.283508e-05 0.2616488 1.587171
+##               gene_symbol
+## A_33_P3242798        CPS1
+## A_23_P46429         CYR61
+## A_33_P3216763        EYA1
+## A_33_P3419696        FGF2
+## A_24_P12626          CAV1
+## A_33_P3228271        CST3
+## 
+## 
+## [1] &quot;IL-33 vs TSLP : 24_hours&quot;
+##                   logFC   AveExpr          t      P.Value adj.P.Val        B
+## A_23_P302595  -1.068825 -2.108462 -10.022416 8.129490e-06 0.1872721 2.955858
+## A_24_P201171  -0.693575 -3.185037  -8.099680 3.910296e-05 0.1872721 2.013963
+## A_23_P7313    -1.287825 -7.721787  -7.698734 5.636706e-05 0.1872721 1.771485
+## A_24_P844984   0.993920  1.036615   7.571675 6.349194e-05 0.1872721 1.690743
+## A_32_P452655   0.875925  2.958137   7.568194 6.370069e-05 0.1872721 1.688504
+## A_33_P3216763 -0.824690 -0.343025  -7.371130 7.686031e-05 0.1872721 1.559293
+##               gene_symbol
+## A_23_P302595     C6orf218
+## A_24_P201171       STXBP1
+## A_23_P7313           SPP1
+## A_24_P844984         PIGR
+## A_32_P452655      LGALS9C
+## A_33_P3216763        EYA1
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-25 : 24_hours&quot;
+##                   logFC   AveExpr         t      P.Value adj.P.Val        B
+## A_24_P411186  -1.161625 -3.298163 -9.213137 1.366768e-05 0.1568356 2.762596
+## A_33_P3227793 -2.153175 -3.063712 -8.897681 1.774538e-05 0.1568356 2.601629
+## A_33_P3302448  1.403800  2.758400  8.548716 2.390482e-05 0.1568356 2.412547
+## A_23_P104804   1.500425  4.603862  8.541526 2.405453e-05 0.1568356 2.408525
+## A_32_P88349    1.076975  2.167813  8.114769 3.512155e-05 0.1831940 2.160040
+## A_23_P32500    0.946200  2.787875  7.335632 7.317103e-05 0.2290163 1.653011
+##               gene_symbol
+## A_24_P411186       BCL11A
+## A_33_P3227793      CGREF1
+## A_33_P3302448      LINGO3
+## A_23_P104804       ZBTB16
+## A_32_P88349              
+## A_23_P32500         STAB1
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-33 : 24_hours&quot;
+##                   logFC   AveExpr         t      P.Value adj.P.Val         B
+## A_24_P190472   0.894400 -3.733500  8.788471 2.001301e-05 0.3139526 -2.989375
+## A_33_P3227793 -1.778525 -3.251038 -8.600392 2.349417e-05 0.3139526 -2.998822
+## A_33_P3846653  0.881225 -5.912937  7.254239 8.108050e-05 0.5173818 -3.084550
+## A_23_P47565   -0.741950 -2.486525 -7.136508 9.111268e-05 0.5173818 -3.093912
+## A_24_P252497  -1.757000 -3.945850 -6.852394 1.214722e-04 0.5173818 -3.118046
+## A_33_P3333523 -0.815100 -1.642025 -6.785924 1.300919e-04 0.5173818 -3.124027
+##               gene_symbol
+## A_24_P190472         SLPI
+## A_33_P3227793      CGREF1
+## A_33_P3846653     KRT19P2
+## A_23_P47565          LDHA
+## A_24_P252497        TRIB1
+## A_33_P3333523            
+## 
+## 
+## [1] &quot;IL-33 vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                   logFC    AveExpr        t      P.Value adj.P.Val        B
+## A_33_P3214056 0.9009828  0.7237586 8.047952 3.807741e-05 0.3367895 1.513270
+## A_33_P3236642 1.0008100 -0.3131550 8.001763 3.971351e-05 0.3367895 1.490502
+## A_32_P74120   0.9336488  0.6357056 7.718768 5.161194e-05 0.3367895 1.346062
+## A_32_P88349   1.0278000  2.1924000 7.455600 6.630843e-05 0.3367895 1.203769
+## A_24_P190472  0.9919750 -3.7822875 7.372277 7.188576e-05 0.3367895 1.157036
+## A_33_P3245228 1.5454325  1.9602337 7.175823 8.720772e-05 0.3367895 1.043524
+##               gene_symbol
+## A_33_P3214056   LOC728875
+## A_33_P3236642        MIA3
+## A_32_P74120     LOC728875
+## A_32_P88349              
+## A_24_P190472         SLPI
+## A_33_P3245228      BPIFA1
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs media : 24_hours&quot;
+##                  logFC   AveExpr         t      P.Value adj.P.Val        B
+## A_23_P46429  -1.246725 -6.694312 -9.761576 1.026858e-05 0.1376484 3.040995
+## A_24_P33895   1.658700 -2.845850  8.589587 2.632478e-05 0.1376484 2.442566
+## A_23_P106362  4.472437  3.494531  8.458086 2.945138e-05 0.1376484 2.367357
+## A_23_P127948 -0.651175 -6.859987 -8.341948 3.255910e-05 0.1376484 2.299451
+## A_23_P2920   -0.715825 -5.562437 -8.210865 3.651270e-05 0.1376484 2.221093
+## A_24_P365767 -1.362300 -5.116425 -8.197748 3.693686e-05 0.1376484 2.213150
+##              gene_symbol
+## A_23_P46429        CYR61
+## A_24_P33895         ATF3
+## A_23_P106362        AQP9
+## A_23_P127948         ADM
+## A_23_P2920      SERPINA3
+## A_24_P365767        CYBB
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP : 24_hours&quot;
+##                   logFC    AveExpr         t      P.Value  adj.P.Val        B
+## A_33_P3332362  2.181283  2.2209087 11.303692 3.339531e-06 0.09526681 3.283775
+## A_33_P3214720  1.145175  2.5632375  8.932543 1.941370e-05 0.22546872 2.359315
+## A_23_P351275  -1.025403 -0.3231310 -8.345303 3.191430e-05 0.22546872 2.060428
+## A_23_P128008   1.596971  0.6120394  7.788705 5.252329e-05 0.22546872 1.744529
+## A_23_P141345  -0.911300 -2.8638750 -7.533973 6.660440e-05 0.22546872 1.588294
+## A_33_P3257165  1.179260  1.2259950  7.473611 7.052532e-05 0.22546872 1.550133
+##               gene_symbol
+## A_33_P3332362      POU2F2
+## A_33_P3214720     ZC3H12A
+## A_23_P351275         UPP1
+## A_23_P128008       CCDC81
+## A_23_P141345         MPP3
+## A_33_P3257165       YPEL1
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-25 : 24_hours&quot;
+##                   logFC   AveExpr         t      P.Value  adj.P.Val        B
+## A_23_P109488   1.472625  3.093738 11.906328 2.026209e-06 0.05463064 3.432259
+## A_23_P84118   -0.767225 -3.964938 -7.627045 5.708672e-05 0.27305327 1.639948
+## A_33_P3351622  0.765750  1.728700  7.295825 7.851667e-05 0.27305327 1.430747
+## A_23_P164042   0.834675  3.702762  7.237032 8.318327e-05 0.27305327 1.392177
+## A_24_P365767  -2.665400 -4.464875 -7.219363 8.464509e-05 0.27305327 1.380499
+## A_33_P3212570  1.098830  1.553385  7.216056 8.492180e-05 0.27305327 1.378309
+##               gene_symbol
+## A_23_P109488      PIK3IP1
+## A_23_P84118         CDH18
+## A_33_P3351622       MYO3A
+## A_23_P164042         ERN1
+## A_24_P365767         CYBB
+## A_33_P3212570            
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-33 : 24_hours&quot;
+##                   logFC   AveExpr         t      P.Value adj.P.Val         B
+## A_33_P3333523 -0.769550 -1.619250 -7.455090 6.766789e-05 0.8313861 -3.460636
+## A_23_P137366  -1.722425  1.162138 -7.384209 7.246081e-05 0.8313861 -3.464326
+## A_24_P252497  -1.540725 -3.837712 -7.169485 8.943161e-05 0.8313861 -3.476039
+## A_23_P101992  -2.132675  2.022687 -6.769173 1.341287e-04 0.9351792 -3.500233
+## A_24_P321766   0.895200 -6.190975  6.495362 1.788055e-04 0.9519092 -3.518778
+## A_23_P149529   1.253325 -6.072762  6.261068 2.302705e-04 0.9519092 -3.536107
+##               gene_symbol
+## A_33_P3333523            
+## A_23_P137366         C1QB
+## A_24_P252497        TRIB1
+## A_23_P101992        MARCO
+## A_24_P321766     SERPINA5
+## A_23_P149529      TACSTD2
+## 
+## 
+## [1] &quot;IL-33, IL-25 vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val        B
+## A_32_P180741   1.0978025 -0.3308138  9.716869 9.646151e-06 0.2673045 2.613869
+## A_33_P3422659 -1.7636158  1.1967171 -7.575661 6.040081e-05 0.2706084 1.554703
+## A_24_P238250   0.9614325 -1.5805837  7.560893 6.125465e-05 0.2706084 1.545751
+## A_33_P3260373  0.8939875  1.0426563  7.517252 6.385692e-05 0.2706084 1.519145
+## A_23_P137366  -1.4458745  1.0238627 -7.388789 7.225565e-05 0.2706084 1.439479
+## A_33_P3210160 -1.1468710 -0.7230645 -7.380876 7.281159e-05 0.2706084 1.434505
+##               gene_symbol
+## A_32_P180741         TNK2
+## A_33_P3422659       GDAP1
+## A_24_P238250       LGALS7
+## A_33_P3260373  ISY1-RAB43
+## A_23_P137366         C1QB
+## A_33_P3210160      ZNF865
+## 
+## 
+## [1] &quot;media vs TSLP : 24_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_33_P3286937 -1.1642750 -2.9299625 -9.453611 1.266932e-05 0.1940348 1.6013150
+## A_23_P380526  -1.0074500 -6.0519000 -9.139115 1.627714e-05 0.1940348 1.5002831
+## A_23_P165624  -1.0842000 -2.8920750 -8.769641 2.205629e-05 0.1940348 1.3724633
+## A_24_P918907   1.0657303  0.4667699  8.437904 2.924206e-05 0.1940348 1.2485422
+## A_23_P302005   0.8842750 -1.5587375  8.299881 3.297107e-05 0.1940348 1.1942441
+## A_33_P3576034 -0.9876875 -1.0905813 -7.618632 6.111418e-05 0.2888706 0.9002343
+##               gene_symbol
+## A_33_P3286937     PPP1R9A
+## A_23_P380526        DPPA4
+## A_23_P165624      TNFAIP6
+## A_24_P918907    LOC154761
+## A_23_P302005        STON1
+## A_33_P3576034   LOC644919
+## 
+## 
+## [1] &quot;media vs TSLP, IL-25 : 24_hours&quot;
+##                   logFC    AveExpr         t      P.Value adj.P.Val        B
+## A_33_P3259112  0.808270  0.2003000  8.269311 2.999427e-05 0.1693952 2.325824
+## A_23_P36985   -2.164973 -0.1175787 -8.106292 3.474354e-05 0.1693952 2.225974
+## A_33_P3235611 -1.834858 -2.3880212 -7.978196 3.906258e-05 0.1693952 2.145432
+## A_32_P88349    1.047075  2.1528625  7.846813 4.411983e-05 0.1693952 2.060866
+## A_23_P109488   1.122900  2.9188750  7.738962 4.881600e-05 0.1693952 1.989931
+## A_24_P238543  -1.006735 -0.7920325 -7.650354 5.309013e-05 0.1693952 1.930608
+##               gene_symbol
+## A_33_P3259112    FLJ41278
+## A_23_P36985         PCDH8
+## A_33_P3235611     SLC46A1
+## A_32_P88349              
+## A_23_P109488      PIK3IP1
+## A_24_P238543        PHKA1
+## 
+## 
+## [1] &quot;media vs TSLP, IL-33 : 24_hours&quot;
+##                    logFC    AveExpr          t      P.Value  adj.P.Val        B
+## A_23_P131024  -2.1895000  6.3266750 -12.973874 9.622296e-07 0.01373253 5.302335
+## A_23_P149529   1.9589500 -5.7199500  12.959666 9.705313e-07 0.01373253 5.297014
+## A_23_P338505  -0.9210942  0.5029204 -10.354044 5.533571e-06 0.03951159 4.120431
+## A_23_P135381   1.5165000 -8.0247500  10.312106 5.708231e-06 0.03951159 4.097712
+## A_23_P110837   1.0590500 -3.9796750   9.920585 7.670995e-06 0.03951159 3.878801
+## A_33_P3326483  1.0951250 -4.8657125   9.806412 8.377312e-06 0.03951159 3.812574
+##               gene_symbol
+## A_23_P131024       ZBTB32
+## A_23_P149529      TACSTD2
+## A_23_P338505     C19orf40
+## A_23_P135381          SP5
+## A_23_P110837         IRX4
+## A_33_P3326483      CRABP1
+## 
+## 
+## [1] &quot;media vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                  logFC    AveExpr        t      P.Value   adj.P.Val        B
+## A_23_P46429   1.960525 -7.0512125 18.11811 7.044454e-08 0.001981253 7.352977
+## A_33_P3303016 1.215560  0.0241400 13.65108 6.632680e-07 0.009327206 5.981099
+## A_23_P142872  1.839850 -4.8576000 11.71147 2.191948e-06 0.017754888 5.116716
+## A_33_P3352011 1.468909 -0.7618455 11.34717 2.798693e-06 0.017754888 4.929505
+## A_23_P135381  1.543350 -8.0381750 10.84974 3.952571e-06 0.017754888 4.659290
+## A_33_P3263890 1.429725 -6.5966125 10.50917 5.047464e-06 0.017754888 4.463950
+##                gene_symbol
+## A_23_P46429          CYR61
+## A_33_P3303016 LOC100130587
+## A_23_P142872        TCF7L1
+## A_33_P3352011             
+## A_23_P135381           SP5
+## A_33_P3263890        PRRX1
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-25 : 24_hours&quot;
+##                    logFC     AveExpr         t      P.Value adj.P.Val         B
+## A_23_P36985   -1.9547475 -0.01246625 -7.140879 8.850884e-05 0.9995476 -3.333020
+## A_33_P3227798 -1.2906495 -1.02235025 -7.094576 9.271762e-05 0.9995476 -3.336100
+## A_33_P3374190  0.5412075  1.06497125  6.036326 2.863199e-04 0.9995476 -3.421376
+## A_23_P109488   0.7091000  2.71197500  5.816416 3.681187e-04 0.9995476 -3.443399
+## A_33_P3300837 -0.8026350 -0.93708250 -5.532964 5.136933e-04 0.9995476 -3.474480
+## A_33_P3281563 -0.9986345 -0.03582525 -5.223287 7.485265e-04 0.9995476 -3.512322
+##                gene_symbol
+## A_23_P36985          PCDH8
+## A_33_P3227798 LOC100129995
+## A_33_P3374190       INPP5A
+## A_23_P109488       PIK3IP1
+## A_33_P3300837         LDB2
+## A_33_P3281563             
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-33 : 24_hours&quot;
+##                   logFC   AveExpr         t      P.Value adj.P.Val        B
+## A_24_P208909   1.147675 -3.219912 10.155316 6.595954e-06 0.1481819 3.499941
+## A_23_P109913  -1.428975  8.148687 -9.253703 1.332582e-05 0.1481819 3.047075
+## A_33_P3332362 -1.846583  2.053559 -8.356689 2.848074e-05 0.1481819 2.522875
+## A_23_P141345   1.001050 -2.908750  8.117656 3.526469e-05 0.1481819 2.369113
+## A_23_P163697   1.656725 -2.992237  8.073879 3.669201e-05 0.1481819 2.340262
+## A_23_P254831   0.842925 -1.535962  8.054048 3.735956e-05 0.1481819 2.327122
+##               gene_symbol
+## A_24_P208909        TRIM2
+## A_23_P109913        CXCR6
+## A_33_P3332362      POU2F2
+## A_23_P141345         MPP3
+## A_23_P163697        SYT17
+## A_23_P254831       MAGEB2
+## 
+## 
+## [1] &quot;TSLP vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                  logFC    AveExpr          t      P.Value  adj.P.Val        B
+## A_23_P46429   1.638575 -7.2121875  14.162415 4.897173e-07 0.01368613 5.246588
+## A_23_P109913 -1.353850  8.1111250 -11.030879 3.440033e-06 0.04003004 4.146241
+## A_23_P71530   1.114775 -4.9720125  10.716511 4.297066e-06 0.04003004 4.004596
+## A_23_P142872  1.709775 -4.9226375  10.266249 5.970070e-06 0.04171139 3.789341
+## A_23_P134109 -1.279702 -0.6463893  -9.213922 1.355639e-05 0.07577211 3.222754
+## A_24_P302249  1.132075 -6.9736125   8.338198 2.855763e-05 0.10606681 2.672937
+##              gene_symbol
+## A_23_P46429        CYR61
+## A_23_P109913       CXCR6
+## A_23_P71530    TNFRSF11B
+## A_23_P142872      TCF7L1
+## A_23_P134109     EPB41L2
+## A_24_P302249       APOA2
+## 
+## 
+## [1] &quot;TSLP, IL-25 vs TSLP, IL-33 : 24_hours&quot;
+##                    logFC   AveExpr         t      P.Value adj.P.Val        B
+## A_24_P230563  -1.5801500  7.734375 -9.459033 1.093874e-05 0.1791582 2.802144
+## A_33_P3399318  1.1589750 -5.828213  8.754660 1.958119e-05 0.1791582 2.455817
+## A_33_P3394272  1.4874250 -2.114387  8.282607 2.957473e-05 0.1791582 2.197261
+## A_23_P204947   0.8532425 -1.282554  8.147617 3.339308e-05 0.1791582 2.119056
+## A_23_P110837   0.9310000 -4.043700  8.145324 3.346250e-05 0.1791582 2.117711
+## A_23_P131935   0.9951750 -3.761262  7.921437 4.107794e-05 0.1832761 1.983522
+##               gene_symbol
+## A_24_P230563        IL2RA
+## A_33_P3399318       GNG12
+## A_33_P3394272   LINC00473
+## A_23_P204947         GJB2
+## A_23_P110837         IRX4
+## A_23_P131935       FERMT1
+## 
+## 
+## [1] &quot;TSLP, IL-25 vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                 logFC   AveExpr        t      P.Value adj.P.Val        B
+## A_23_P142872  1.69585 -4.929600 9.318160 1.198607e-05 0.2444636 2.334252
+## A_23_P71530   1.01675 -5.021025 8.806497 1.835036e-05 0.2444636 2.112575
+## A_33_P3372251 1.61915 -2.351100 7.741869 4.771829e-05 0.2921451 1.572135
+## A_23_P79562   1.34375 -9.697200 7.600351 5.460477e-05 0.2921451 1.491157
+## A_23_P84118   1.38180 -4.272225 7.585374 5.539569e-05 0.2921451 1.482450
+## A_33_P3394272 1.16800 -1.954675 7.408065 6.578857e-05 0.2921451 1.377327
+##               gene_symbol
+## A_23_P142872       TCF7L1
+## A_23_P71530     TNFRSF11B
+## A_33_P3372251      HOMER1
+## A_23_P79562         FABP1
+## A_23_P84118         CDH18
+## A_33_P3394272   LINC00473
+## 
+## 
+## [1] &quot;TSLP, IL-33 vs TSLP, IL-33, IL-25 : 24_hours&quot;
+##                    logFC    AveExpr         t      P.Value adj.P.Val         B
+## A_33_P3356007 -0.8148350  0.0387925 -7.112295 0.0000900454 0.9999988 -3.527263
+## A_24_P132813   0.7252425  0.6717513  6.800542 0.0001238601 0.9999988 -3.545359
+## A_33_P3260373  0.6149875  0.9031562  6.258661 0.0002213099 0.9999988 -3.581782
+## A_32_P180741   0.6308500 -0.5642900  6.041502 0.0002820414 0.9999988 -3.598433
+## A_33_P3413344  1.1768563  0.5745819  5.763156 0.0003882276 0.9999988 -3.621761
+## A_33_P3356182  0.7223450 -0.6767950  5.741440 0.0003981957 0.9999988 -3.623682
+##               gene_symbol
+## A_33_P3356007       ALOX5
+## A_24_P132813       OPALIN
+## A_33_P3260373  ISY1-RAB43
+## A_32_P180741         TNK2
+## A_33_P3413344            
+## A_33_P3356182</code></pre>
 </div>
 
 
